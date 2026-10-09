@@ -2,13 +2,13 @@
 
 Reusable instructions for **LLM features, prompts, model selection, measurement, and agentic coding**. Attach this file as context for any LLM that helps you design or code those systems.
 
-Source lessons live under `Forward Deployed Engineer/` (root articles, plus `Week5/`, `Week6/`, and `Week7/`). This file is the operating contract plus the important notes. It is not a substitute for the article files when you need the full worked examples.
+Source lessons live under `Forward Deployed Engineer/`. This file is the operating contract plus the important notes. It is not a substitute for the article files when you need the full worked examples. Use it on any engagement. Do not treat it as a class outline.
 
 **If `Master.md` (SDLC & Python Foundations) is also attached:** follow **both**. `Master.md` owns Python, SDLC, tests, Docker, deploy. This file owns models, prompts, harnesses, agents, and agentic git/review. When they overlap (tests, PRs, unhappy paths), apply **both**. Do not drop SDLC quality gates because the work is “AI.”
 
 ---
 
-## Client-facing priorities (today’s lecture — do this first)
+## Client-facing priorities (do this first)
 
 On real engagements, two articles outrank prompt-wording advice. Apply them **before** proposing a model, a comparison slide, or more prompt text.
 
@@ -63,7 +63,7 @@ Three articles. Apply them whenever the answer must come from material that does
 
 **Do not stuff the corpus into the window** because it fits. Retrieve the relevant portions. **Do not jump to agentic retrieval** because it is more sophisticated. Plain vector search is the starting point; hybrid and agentic are justified upgrades. **Do not rewrite the prompt** until you have looked at what was actually retrieved.
 
-The operational contract for a policy corpus (what similarity cannot do, `embed_text` vs `text`, `build_id`, reciprocal rank fusion, pre-filtering, multi-step with code in control) is in the Week 5 sections below. The three articles above are the simpler starting picture. Where they differ, follow Week 5.
+The operational contract for a policy corpus (what similarity cannot do, `embed_text` vs `text`, `build_id`, reciprocal rank fusion, pre-filtering, multi-step with code in control) is in the retrieval sections below, from **What an embedding actually is** through **Retrieval in more than one step**. The three articles above are the simpler starting picture. Where they differ, follow those retrieval sections.
 
 ---
 
@@ -115,6 +115,9 @@ Then you may write code. Still:
 - Extraction / routing / drafting — different **temperature** and maybe different **models**. `(Sampling, Selecting a Model)`
 - Which **prompt version** and **pinned model id** produced the numbers you are quoting? `(System Design, Reading a Comparison)`
 - For agent work: **outcome, authority, boundary, stop rule**? Which files may change? `(Scoping, Parallel Agents)`
+- For a multi-agent case: is memory **this request only**, **durable across sessions**, or **shared**? Shared store or an explicit handoff? `(State and Memory)`
+- On a bad multi-agent answer: can you pull the **trace** (which agent, where the input came from, output, duration, tokens, errors) instead of rerunning? What is **cost per agent per case**, and which step owns the latency? `(Observability and Tracing)`
+- Does this step need an **answer now** (API), a **notification** (webhook plus reconciliation), or a **buffer** (queue plus a depth alert)? What happens when that call fails? `(Integration Patterns)`
 
 ### Model vs harness vs agent (keep these distinct)
 
@@ -250,7 +253,7 @@ Vendors ship **families**; **tiers** inside a family trade capability vs cost/la
 
 | Axis | Meaning for selection |
 |---|---|
-| Context window | **Capacity, not comprehension.** Realistic case must fit. Middle-of-context drop-off is a retrieval problem (Week 3). |
+| Context window | **Capacity, not comprehension.** Realistic case must fit. Middle-of-context drop-off is a retrieval problem (lost-in-the-middle). |
 | Reasoning mode | Extra billed tokens and latency. Helps multi-step deduction, not “read a field.” Not portable across providers. |
 | Structured output | Schema-constrained decode vs JSON-valid-only vs instruct-and-validate. Weaker guarantee → more repair tokens. **Always keep a validation path.** |
 | Modality | Text vs image/document. Reading text already in a file is in scope; **building OCR is not** (this program / capstone). |
@@ -259,7 +262,7 @@ Vendors ship **families**; **tiers** inside a family trade capability vs cost/la
 
 **Fact sheet** (`docs/model-facts.md`): every row has a **source and date**. Alias row should say **none**. Rows that go stale first: price, rate limit, retirement. **No quality column** — quality is measured on your cases.
 
-**Do not:** spend weeks on vendor when the saving is a cheaper **tier**; fill a huge window because you bought it; assume structured output / caching / usage field names are portable (that is why the **adapter** exists).
+**Do not:** spend a long time choosing a vendor when the saving is a cheaper **tier**; fill a huge window because you bought it; assume structured output / caching / usage field names are portable (that is why the **adapter** exists).
 
 ---
 
@@ -337,7 +340,7 @@ A production prompt is a **specification**, not a chat request. No follow-up que
 4. **Output**
 5. **When the task cannot be completed** (absent / ambiguous / out-of-scope)
 
-**Delimit untrusted input always.** Everything between markers is **data**, even if it contains “please ignore previous instructions” or imperative procedure text. Correctness requirement now; security Week 7, adversarial Week 9.
+**Delimit untrusted input always.** Everything between markers is **data**, even if it contains “please ignore previous instructions” or imperative procedure text. That is a correctness requirement on every engagement. A later security review does not replace it.
 
 **Constraints:** “don’t hallucinate” is a wish. “Answer only from text between markers and cite the section” is a procedure you can verify from the output. Two or three real constraints beat a dozen aspirational ones.
 
@@ -438,9 +441,9 @@ Without a number, prompt arguments resolve by seniority. Clients will repeat you
 
 **Frozen case set** + **gold labels written from the source document**, before you measure — not by correcting the system’s output (that drifts gold toward the model). Resolve label disagreements and record why. Adding a case **resets** the comparison.
 
-**Score with code**, not judgment: parsed object vs gold. Exact enum match, set compare, citation present, leakage patterns. Reproducible, free, runnable on every change. LLM-as-judge / eval frameworks are Week 9 — do not reach for them now.
+**Score with code**, not judgment: parsed object vs gold. Exact enum match, set compare, citation present, leakage patterns. Reproducible, free, runnable on every change. Do not use an LLM-as-judge as the scorer.
 
-Recurring metric **families** (name them the same every week): required-evidence recall; correct version selection; grounding/citation correctness; routing and escalation accuracy; PII leakage. Later: tool-call correctness, idempotency.
+Recurring metric **families** (name them the same on every engagement): required-evidence recall; correct version selection; grounding/citation correctness; routing and escalation accuracy; PII leakage. Also, when tools exist: tool-call correctness, idempotency.
 
 **Score per field, then aggregate.** Whole-object exact match hides which field broke.
 
@@ -526,14 +529,14 @@ Pure vector search matches **meaning**. It misses **exact strings**: error codes
 2. Keyword search (exact or fuzzy, the same idea as grep) → chunks that contain the terms.
 3. Merge. A chunk in **both** lists is a strong match: related in meaning and containing the exact terms.
 
-**Do not blend the two scores.** Scores are not comparable, and min-max normalization puts a 1 on a list that matched nothing. Combine by **reciprocal rank fusion** (Week 5 section below): `1 / (60 + rank)`, same `chunk_id`, same `build_id`.
+**Do not blend the two scores.** Scores are not comparable, and min-max normalization puts a 1 on a list that matched nothing. Combine by **reciprocal rank fusion** (see **Two retrievers, one result set**): `1 / (60 + rank)`, same `chunk_id`, same `build_id`.
 
 Use hybrid on enterprise data with codes, names, and terminology a purely semantic search will not surface, and when you have already seen vector-only search fail on needle-in-a-haystack queries.
 
 **Agentic retrieval** lets the model decide the retrieval, instead of one fixed step:
 
 1. Receive the question.
-2. Decide **what to search** — often a reformulation, not the user’s wording (“why did the numbers look off last week” → a targeted query).
+2. Decide **what to search** — often a reformulation, not the user’s wording (“why did the numbers look off recently” → a targeted query).
 3. Retrieve, then judge whether the results actually answer the question.
 4. If not, search again with a refined query. Do not answer from a weak first pass.
 5. Generate only once the context is sufficient.
@@ -585,7 +588,7 @@ Add a **third** question before you tune anything: was the source data correct, 
 
 ---
 
-# What an embedding actually is (Week 5)
+# What an embedding actually is
 
 Full notes: `Forward Deployed Engineer/Week5/What an Embedding Actually Is.md`.
 
@@ -607,7 +610,7 @@ An embedding is a **fixed-length vector** from one model. It is a position, not 
 
 ---
 
-# Chunking a policy document (Week 5)
+# Chunking a policy document
 
 Full notes: `Forward Deployed Engineer/Week5/Chunking a Policy Document.md`.
 
@@ -643,7 +646,7 @@ A chunk that **spans a document boundary** is worse than a short chunk: half the
 
 ---
 
-# The vector store is a database (Week 5)
+# The vector store is a database
 
 Full notes: `Forward Deployed Engineer/Week5/The Vector Store Is a Database.md`.
 
@@ -663,7 +666,7 @@ Rows are chunks. The vector is one more column next to `section` and `effective_
 
 ---
 
-# Two retrievers, one result set (Week 5)
+# Two retrievers, one result set
 
 Full notes: `Forward Deployed Engineer/Week5/Two Retrievers, One Result Set.md`.
 
@@ -698,7 +701,7 @@ There is **no separate dedup step after fusion**. The same `chunk_id` is already
 
 ---
 
-# Filtering is not ranking (Week 5)
+# Filtering is not ranking
 
 Full notes: `Forward Deployed Engineer/Week5/Filtering Is Not Ranking.md`.
 
@@ -722,7 +725,7 @@ An empty result is correct when you hold no policy for that jurisdiction, or the
 
 ---
 
-# Retrieval in more than one step (Week 5)
+# Retrieval in more than one step
 
 Full notes: `Forward Deployed Engineer/Week5/Retrieval in More Than One Step.md`.
 
@@ -744,7 +747,7 @@ The third check is a pattern match over text you already have. It costs no model
 
 **Inside a step:** reciprocal rank fusion. **Across steps: union, not fusion.** Steps look for different things. Fusing across them penalizes a chunk for being absent from a list that was never looking for it. Keep each chunk’s best within-step fused rank. Ties break by `chunk_id`.
 
-**The model rewrites and decomposes. Code decides** which steps run, in what order, under which filters, whether another pass happens, and when to stop. The model does not select tools or call systems. This week’s second search is code. Letting the model own that loop is a later change in who is driving.
+**The model rewrites and decomposes. Code decides** which steps run, in what order, under which filters, whether another pass happens, and when to stop. The model does not select tools or call systems. The second search is code. Letting the model own that loop is agentic retrieval: a different driver.
 
 Record the plan, each step’s query and `FilterSpec`, the candidates, the coverage results, and the stop reason. Temperature 0 does not make rewrites deterministic.
 
@@ -752,7 +755,7 @@ Record the plan, each step’s query and `FilterSpec`, the candidates, the cover
 
 ---
 
-# Structured data vs unstructured, and SQL (Week 6)
+# Structured data vs unstructured, and SQL
 
 Full notes: `Forward Deployed Engineer/Week6/Enterprise Data Context: Structured vs. Unstructured, and SQL Refresh Applied to Retrieval.md`.
 
@@ -769,7 +772,7 @@ A growing pattern lets a model choose the route, and sometimes generate the SQL.
 
 ---
 
-# Data quality and lineage (Week 6)
+# Data quality and lineage
 
 Full notes: `Forward Deployed Engineer/Week6/Data Quality and Lineage Where They Affect RAG Outcomes.md`.
 
@@ -792,11 +795,11 @@ No better chunker, embedding, or reranker fixes a bad source. The system retriev
 2. Did retrieval find the right part of that source?
 3. Did the model use what was retrieved?
 
-**Do not:** spend weeks tuning a pipeline whose corpus is duplicated, superseded, or incomplete.
+**Do not:** spend a long time tuning a pipeline whose corpus is duplicated, superseded, or incomplete.
 
 ---
 
-# Reranking and evaluation harnesses (Week 6)
+# Reranking and evaluation harnesses
 
 Full notes: `Forward Deployed Engineer/Week6/Reranking and Evaluation Harnesses.md`.
 
@@ -809,7 +812,7 @@ It helps two failure modes: a relevant chunk that embedding similarity ranked to
 Measure **separately**:
 
 - **Retrieval:** recall at k — did the expected `chunk_id` appear in the top k?
-- **Answer:** does the generated text contain the expected facts (string match for straightforward facts; LLM-as-judge is a later tool, not the default this week — Week 5 still scores with code against gold)?
+- **Answer:** does the generated text contain the expected facts (string match for straightforward facts; do not use an LLM-as-judge as the default — score with code against gold)?
 
 “It seemed fine on three examples” is not an answer to “how do you know this works?”
 
@@ -817,7 +820,7 @@ Measure **separately**:
 
 ---
 
-# Data layer choices (Week 6)
+# Data layer choices
 
 Full notes: `Forward Deployed Engineer/Week6/Data Layer Choices: Databricks, Snowflake, Azure Cosmos DB, and AWS-Native Options.md`.
 
@@ -838,13 +841,13 @@ This program: stay in a free tier, target AWS. If neither an AWS free tier nor a
 
 ---
 
-# What makes a system agentic vs a workflow (Week 7)
+# What makes a system agentic vs a workflow
 
 Full notes: `Forward Deployed Engineer/Week7/What Makes a System Agentic (vs. Workflows).md`.
 
-A **workflow** is a sequence you decided in advance. It can call an LLM, branch, and have many steps. Last week’s RAG pipeline (embed → retrieve → rerank → generate) is a workflow. The LLM does not choose the sequence.
+A **workflow** is a sequence you decided in advance. It can call an LLM, branch, and have many steps. A RAG pipeline (embed → retrieve → rerank → generate) is a workflow. The LLM does not choose the sequence.
 
-An **agentic** system loops: assess state, choose the next action, act, observe, decide whether to continue. The number and kind of steps are not fixed. Agentic retrieval (reformulate, search, judge, search again) is this. Week 5 multi-step retrieval is **not**: code decides the next search.
+An **agentic** system loops: assess state, choose the next action, act, observe, decide whether to continue. The number and kind of steps are not fixed. Agentic retrieval (reformulate, search, judge, search again) is this. Multi-step retrieval where **code** decides the next search is not.
 
 | | Workflow | Agent |
 |---|---|---|
@@ -861,7 +864,7 @@ High-volume, near-identical cases (thousands of duplicate-charge tickets) want t
 
 ---
 
-# Tool use and function calling (Week 7)
+# Tool use and function calling
 
 Full notes: `Forward Deployed Engineer/Week7/Tool Use and Function Calling.md`.
 
@@ -883,7 +886,7 @@ Too many overlapping tools make the choice unreliable.
 
 ---
 
-# Planning, reflection, and ReAct (Week 7)
+# Planning, reflection, and ReAct
 
 Full notes: `Forward Deployed Engineer/Week7/Reflection, Planning, and ReAct Patterns.md`.
 
@@ -899,7 +902,7 @@ A robust agent often uses all three: plan up front, ReAct to execute (and skip a
 
 ---
 
-# MCP: building servers (Week 7)
+# MCP: building servers
 
 Full notes: `Forward Deployed Engineer/Week7/MCP Deep Dive: Building Servers, Not Just Consuming Them.md`.
 
@@ -921,7 +924,7 @@ What a server can expose:
 | **Resource** | Context to read, not an action (a standing onboarding document) |
 | **Prompt** | A reusable template (“draft a complaint response about {topic}”) |
 
-This week, build **tools**. A read (`get_claim`) is low risk. A write (`flag_for_review`) changes a record: validate harder, and test the failure path (unknown id must error, not no-op).
+Start with **tools**. A read (`get_claim`) is low risk. A write (`flag_for_review`) changes a record: validate harder, and test the failure path (unknown id must error, not no-op).
 
 **Test the function first**, with known inputs, before any agent is connected. Then test that the server lists the tools and handles a protocol call. Same order as unit then integration.
 
@@ -931,7 +934,7 @@ You are writing code an LLM can discover. The tool description rules above still
 
 ---
 
-# When agents are the wrong answer (Week 7)
+# When agents are the wrong answer
 
 Full notes: `Forward Deployed Engineer/Week7/When Agents Are the Wrong Answer.md`. Same discipline as **When Not to Use an LLM**, one level up. The cost of the wrong choice is higher: more money, more latency, harder debug.
 
@@ -949,6 +952,85 @@ The honest test: if you wrote the fixed sequence, would it cover the realistic c
 Clients will ask for “an agent” for password resets and compliance reports. The job is to say the steps are already known, and to ship the workflow.
 
 **Do not:** skip the four questions because agentic sounds current; let an agent decide the shape of a report that must be identical every month.
+
+---
+
+# State and memory
+
+Full notes: `Forward Deployed Engineer/WEEK8/State and Memory Management.md`.
+
+An LLM call is stateless. It knows only the context you send. A multi-step agent, and any system where several agents work one case, needs a deliberate decision about what persists, where it lives, and who can read it.
+
+**Short-term (working) memory** is the current task only. Inside one equipment-request loop the agent must remember the role and the policy limits it already looked up. When the final answer is produced, discard that context. The next employee's request starts empty. Build the context list **inside** the request, not once for the process.
+
+**Long-term (persistent) memory** survives sessions. A support agent should recall that this customer already reported the problem on Tuesday. An underwriting case can span days: intake today, risk once documents arrive, a recommendation later. Store the durable facts (customer id, prior ticket, resolution, what a previous agent already gathered) in a database `(Structured data vs unstructured, and SQL)`. Do not re-derive them, and do not leave them only in one conversation's window.
+
+**Two ways agents share work on the same case:**
+
+| Pattern | How it works | Tradeoff |
+|---|---|---|
+| **Shared store** | Intake, risk, and recommendation all read and write one case record | Simpler to start. Any agent can read or write something it should not |
+| **Message passing** | One agent's output is packaged and handed in as the next agent's input. Nobody reads a store it was not given | Cleaner boundaries. More plumbing at each handoff |
+
+The event-driven flow in **Integration patterns** is message passing, formalized around events and queues.
+
+Memory design fails in three specific ways:
+
+- **Stale data.** An agent reads a store a prior step has not updated, and decides on incomplete facts.
+- **Context bleed.** The context list is created once, globally, so employee A's tenure is still there when employee B's request starts. One happy-path test case will not catch it. Test a second user, and test overlapping requests. Personal data makes this a serious bug, not a convenience issue.
+- **Unbounded growth.** Long-term memory that is never pruned or summarized outgrows what you can put in a window `(Tokens, Context)`.
+
+This is **product** state. Coding agents on one repository still do not share uncommitted files. **You** remain the coordinator `(Parallel Agents — you are the only shared memory)`.
+
+**Do not:** reuse one context list across requests; make each agent start from scratch when a previous agent already wrote the fact; treat a shared store as safe because it was easy to wire up.
+
+---
+
+# Observability, tracing, and budgets
+
+Full notes: `Forward Deployed Engineer/WEEK8/Observability and Tracing; Cost and Latency Budgeting.md`. Extends **Latency and Cost**: write the cost ceiling and the latency budget before you prefer an architecture. This section is how you see a multi-agent run after the fact, and how you attribute spend and time **per step**.
+
+Ordinary debugging assumes one line and the same result if you run the same input twice. A multi-agent system breaks both. The fault can be any agent, or the handoff between them, and sampling means a rerun may not fail the same way `(Sampling)`. **Observability** instruments the system so you can see what happened without reproducing it live. A **trace** is the ordered record of one request: every agent, every tool, every decision.
+
+A ReAct thought / action / observation printout is already a trace. Production logging adds, for each step:
+
+- which agent or component ran
+- what input it received, and where that input came from (another agent, a tool, the user)
+- what output or decision it produced
+- timestamp and duration (this is the latency budget, measured)
+- tokens and cost, if the step called a model
+- errors and retries
+
+A wrong underwriting recommendation is then bad intake data, an enrichment step that never wrote what it should have, or a risk score that misapplied its logic. It is not one opaque pipeline.
+
+**Cost.** Several agents, each making model calls, multiply the per-call cost in **Latency and cost**. Track **cost per agent per case**, not only the month-end total. Illustrative shape only — do not quote as live prices: intake $0.02 + enrichment $0.05 + risk $0.03 + recommendation $0.02 ≈ $0.12/case; × 10,000 cases/month ≈ $1,200. Set the expected budget from estimated tokens **before** you build. Compare actuals so a prompt that grew, or a step that started retrying, is caught before the client sees the bill. Still sum retries and failed calls into the case `(Latency and Cost — cost per case, including retries)`.
+
+**Latency.** Sequential agents add. Four agents at about 2 seconds each is at least 8 seconds before tools, retries, and an inner ReAct loop. `duration_ms` on the trace is what names the bottleneck: enrichment at 18 of 25 seconds, because of an external call. Optimize or parallelize **that** step. Ask whether the next step actually depends on the previous output; if it does not, run them concurrently. A real-time chat and an overnight batch are different architectures. Pick the budget first `(Latency and Cost — personas)`.
+
+**Do not:** debug a multi-agent failure by rerunning and hoping it repeats; tune the whole pipeline when one step owns the time; discover the budget after the client complains about the bill or the wait.
+
+---
+
+# Integration patterns: APIs, webhooks, queues, events
+
+Full notes: `Forward Deployed Engineer/WEEK8/Integration Patterns: APIs, Webhooks, Queues, and Event-Driven Flows.md`.
+
+Agents connect into systems the client already runs. Pick the pattern for the need, and define the failure before the demo. A failure here does not stop at one request. It can stall every later agent.
+
+| Pattern | Use when | What fails | What you do |
+|---|---|---|---|
+| **API** (synchronous) | You need the answer now. Risk scoring calls a credit bureau and cannot score until the response returns | The caller is blocked. A slow or down API becomes your latency and your outage. Tracing is how you see it | Timeout. Limited retries with **backoff** (wait longer between tries; do not hammer a struggling API). Then escalate for manual review. Do not guess the score |
+| **Webhook** | The other system should tell you when something happened. A document upload starts enrichment. Do not poll "anything new?" on a timer | Delivery can fail silently, and enrichment never runs | React when the event arrives. Add a periodic **reconciliation** check for uploads that should have notified you and did not |
+| **Queue** | Load is bursty. 500 intakes arrive at once; risk scoring cannot call the credit API for all of them immediately | Nothing crashes. The queue grows, and cases quietly miss the time the client was promised | Intake drops a message and moves on. Risk scoring pulls at a rate it can sustain. **Monitor queue depth** and set the threshold that means this needs attention |
+| **Event-driven flow** | Several systems, several steps, and no component should call the next one directly | A missed event stalls a later agent with no error on the earlier one | Each step reacts and emits the next: `application received` → queue → enrichment → `enrichment complete` → risk → `risk assessed` → recommendation. This is message passing, formalized `(State and Memory)` |
+
+**API vs webhook for "did a document arrive?":** a poll asks on a timer and usually hears nothing. A webhook is the document system calling you at the moment of the upload.
+
+**Direct call vs queue:** intake calling risk scoring for all 500 at once overwhelms the agent or the credit API. The queue lets the two sides run at their own pace. Neither needs to know the other's current load.
+
+The demo that works once is the happy path. The system that survives has a timeout, capped backoff, escalation, reconciliation, and a queue-depth alert, and those events show up on the trace above.
+
+**Do not:** poll when the other system can notify you; call the next agent directly under a volume spike; retry a dead API without a cap and a backoff; invent a risk score when the credit check never returned; trust webhooks with no reconciliation; treat a growing queue as healthy because nothing threw.
 
 ---
 
@@ -1113,7 +1195,7 @@ Same idea on the **product** side: one adapter; mixed models per task; measure w
 
 # Five recurring failure shapes (prompt / extraction)
 
-Meet these every week. Cheapest handling is in the prompt + schema, not later.
+Meet these on every extraction. Cheapest handling is in the prompt + schema, not later.
 
 1. **Silent required field** → status `absent`, not a plausible invention.  
 2. **Self-contradiction** → `ambiguous` + note; do not pick a side.  
@@ -1143,6 +1225,11 @@ Meet these every week. Cheapest handling is in the prompt + schema, not later.
 | Retrieval plan + `stop_reason` | Rewrite, steps, coverage, why the loop stopped |
 | RAG eval harness | Recall at k separate from answer checks; frozen questions |
 | MCP tool tests | Functions asserted before any agent is connected |
+| Per-request context | Fresh for each case; discarded after the answer. Not a process-global list |
+| Case store or handoff | Durable facts, and what the previous agent already wrote |
+| Trace record | Agent, input source, output, `duration_ms`, tokens, errors, retries |
+| Cost and latency budget | Per case, per agent, written before the architecture |
+| Queue-depth alert | Threshold before cases silently miss the time expectation |
 | Standing agent instructions | Repo conventions |
 | `docs/api-contract.md` + red tests | Authority for agent coding |
 | `.worktrees/` gitignored | Parallel agents |
@@ -1192,6 +1279,15 @@ Meet these every week. Cheapest handling is in the prompt + schema, not later.
 | Tool call | The model requests. Your code validates and executes. Side effects are checked first. |
 | MCP | Host, client, server. Tools, resources, prompts. One server, many clients. |
 | ReAct | Thought, action, observation. Plan first. Reflect before anything is sent. The thought is not audit evidence. |
+| Short-term vs long-term memory | This request only, then discard, vs durable facts in a database across sessions. |
+| Shared store vs message passing | Everyone reads one case record (easy to start, easy to leak) vs an explicit handoff (stricter boundaries). |
+| Context bleed | A context list created once for the process. Test a second user, not one happy case. |
+| Why a trace | The same input may not fail twice. The trace shows which agent, which tool, and which handoff. |
+| Multi-agent cost | Sum per agent per case, including retries. The month-end bill does not say which step grew. |
+| Latency bottleneck | `duration_ms` per step. Parallelize only a step that does not depend on the previous output. |
+| API vs webhook vs queue | You need the answer now; they notify you; you buffer a burst. Each pattern has its own failure. |
+| Missed webhook | A reconciliation poll. Do not trust delivery alone. |
+| Backed-up queue | No crash. Depth grows. Alert before the client asks why a case takes two days. |
 
 ---
 
@@ -1222,19 +1318,22 @@ Meet these every week. Cheapest handling is in the prompt + schema, not later.
 | Two retrievers / RRF | `Week5/Two Retrievers, One Result Set.md` |
 | Filtering is not ranking | `Week5/Filtering Is Not Ranking.md` |
 | Multi-step retrieval | `Week5/Retrieval in More Than One Step.md` |
-| Week 5 quiz condensation | `Week5/Quiz Study Guide.md` |
+| Retrieval quiz condensation | `Week5/Quiz Study Guide.md` |
 | Structured vs unstructured / SQL | `Week6/Enterprise Data Context: Structured vs. Unstructured, and SQL Refresh Applied to Retrieval.md` |
 | Data quality and lineage | `Week6/Data Quality and Lineage Where They Affect RAG Outcomes.md` |
 | Reranking and eval harnesses | `Week6/Reranking and Evaluation Harnesses.md` |
 | Data layer choices | `Week6/Data Layer Choices: Databricks, Snowflake, Azure Cosmos DB, and AWS-Native Options.md` |
-| Week 6 embeddings (simpler RAG picture) | `Week6/Embeddings, Vector Stores, and Chunking.md` |
-| Week 6 hybrid (simpler picture) | `Week6/Hybrid and Agentic Retrieval.md` |
-| Week 6 failure modes | `Week6/Failure Modes: Lost-in-Middle, Retrieval Mismatch, and Hallucination Under Low Recall.md` |
+| Embeddings (simpler RAG picture) | `Week6/Embeddings, Vector Stores, and Chunking.md` |
+| Hybrid retrieval (simpler picture) | `Week6/Hybrid and Agentic Retrieval.md` |
+| Failure modes (simpler picture) | `Week6/Failure Modes: Lost-in-Middle, Retrieval Mismatch, and Hallucination Under Low Recall.md` |
 | Agentic vs workflow | `Week7/What Makes a System Agentic (vs. Workflows).md` |
 | Tool use / function calling | `Week7/Tool Use and Function Calling.md` |
 | Planning, reflection, ReAct | `Week7/Reflection, Planning, and ReAct Patterns.md` |
 | MCP servers | `Week7/MCP Deep Dive: Building Servers, Not Just Consuming Them.md` |
 | When not to use an agent | `Week7/When Agents Are the Wrong Answer.md` |
+| State and memory | `WEEK8/State and Memory Management.md` |
+| Observability, tracing, budgets | `WEEK8/Observability and Tracing; Cost and Latency Budgeting.md` |
+| APIs, webhooks, queues, events | `WEEK8/Integration Patterns: APIs, Webhooks, Queues, and Event-Driven Flows.md` |
 | Git discipline | `Git as an Engineering Discipline.md` |
 | PR and review | `The Pull Request and the Review.md` |
 | Scoping agents | `Scoping Work for an Agent.md` |
@@ -1255,8 +1354,9 @@ You are a **reviewer and guide**, not an autopilot implementer.
 - Write code only when the user explicitly asks to implement.
 - Never skip gold labels, versioning, spend ceilings, unhappy paths, or the pre-merge review “to save time.”
 - If the request would put a determined rule in a prompt, treat reasoning as audit evidence, edit a scored prompt in place, un-pin an alias, quote a 12-case percentage as production quality, or merge generated code nobody can explain — **stop and explain** with a citation.
-- On **client** work, default to the two lecture articles: **When Not to Use an LLM** (placement: model reads, code decides) and **Reading a Model Comparison** (one table per task; counts; caveats that travel with the numbers).
-- On **RAG** work, default to the three important articles: **Embeddings, Vector Stores, and Chunking** (pipeline), **Hybrid and Agentic Retrieval** (upgrade only when justified), and **Failure Modes** (inspect retrieval before editing the prompt). Then apply the Week 5 contract: `embed_text` vs `text`, `build_id`, reciprocal rank fusion, pre-filter both retrievers, code-controlled multi-step. Ask whether the **source** was current before you tune the pipeline.
+- On **client** work, default to two articles: **When Not to Use an LLM** (placement: model reads, code decides) and **Reading a Model Comparison** (one table per task; counts; caveats that travel with the numbers).
+- On **RAG** work, default to the three important articles: **Embeddings, Vector Stores, and Chunking** (pipeline), **Hybrid and Agentic Retrieval** (upgrade only when justified), and **Failure Modes** (inspect retrieval before editing the prompt). Then apply the retrieval contract: `embed_text` vs `text`, `build_id`, reciprocal rank fusion, pre-filter both retrievers, code-controlled multi-step. Ask whether the **source** was current before you tune the pipeline.
 - On **agent** work, walk the four questions in order: code, one LLM call, fixed workflow, agent. The model requests tools; your code validates and runs them. Plan, ReAct, reflect. Do not treat the thought trace as evidence.
+- On **multi-agent** work, scope short-term memory to one request and persist case facts on purpose (shared store or an explicit handoff). Trace every step. Set cost and latency budgets per agent before you build. Connect with an API, a webhook, or a queue for the need you actually have, and define timeout, missed delivery, and queue depth before the happy path.
 
-*Derived from Forward Deployed Engineer articles in this course, including `Week5/`, `Week6/`, and `Week7/`. Use on any LLM or agentic project. Pair with `Master.md` when the same repo still needs SDLC and Python discipline. Client-facing default: those two lecture articles first. RAG default: the three important retrieval articles plus the Week 5 contract. Agent default: the simplest option that actually solves the task.*
+*Derived from the Forward Deployed Engineer articles in this repo. Use on any LLM or agentic project. Pair with `Master.md` when the same repo still needs SDLC and Python discipline. Client-facing default: those two articles first. RAG default: the three important retrieval articles plus the retrieval contract. Agent default: the simplest option that actually solves the task.*
