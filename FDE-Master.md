@@ -118,6 +118,10 @@ Then you may write code. Still:
 - For a multi-agent case: is memory **this request only**, **durable across sessions**, or **shared**? Shared store or an explicit handoff? `(State and Memory)`
 - On a bad multi-agent answer: can you pull the **trace** (which agent, where the input came from, output, duration, tokens, errors) instead of rerunning? What is **cost per agent per case**, and which step owns the latency? `(Observability and Tracing)`
 - Does this step need an **answer now** (API), a **notification** (webhook plus reconciliation), or a **buffer** (queue plus a depth alert)? What happens when that call fails? `(Integration Patterns)`
+- Where may this **run**, and which **connections** are allowed? Which workload identity needs which permission, and no more? Is the model call a direct provider API, **Bedrock** (or the client's managed equivalent) on a private path, or a model hosted inside the boundary? `(Cloud fundamentals)`
+- Is the work a **short event**, a **running service**, or many components that must scale apart on a platform the client can operate? `(Deployment patterns)`
+- If the environment **cannot reach the internet**: which images, packages, and model files must be approved and staged first, and does the whole workflow still finish with those files alone? `(Air-gapped hosting)`
+- Which pressure is actually binding: **residency**, **sovereignty**, **vendor risk**, or **model governance**? Map storage, processing, inference, embeddings, and logs. Do not answer all four with "on-prem." `(Regulated deployment)`
 
 ### Model vs harness vs agent (keep these distinct)
 
@@ -1034,6 +1038,120 @@ The demo that works once is the happy path. The system that survives has a timeo
 
 ---
 
+# Where the system runs
+
+Full notes: `Forward Deployed Engineer/Week9/AWS, Azure, GCP Fundamentals for AI Workloads.md`.
+
+A laptop run is not a production run. Production needs the process to stay up when you leave, and enough capacity for real traffic. This program's cloud is **AWS**. The client already has an identity model, a network, and usually one provider. Fit the agents into that. Do not stand up a second security story beside it.
+
+**IAM.** A **user** is a persistent identity with credentials. A **role** is permissions a person or a workload assumes for a while. An agent runs as a role, not as a person's keys baked into the image. A **policy** is the rule: this role may read these applicant records, invoke the model, and write this result. Nothing else. That is **least privilege**. A role that can delete the account turns one bug, or one stolen credential, into damage the agent never needed the power to do.
+
+**Network.** A **VPC** is the network boundary. **Subnets** divide it. A **public** subnet has a route to an internet gateway: the load balancer that accepts authenticated requests. A **private** subnet has no direct internet path: the agents and the state database. A **security group** is the firewall on one resource. The entry point accepts HTTPS from the intended clients. The agents accept traffic only from that entry point. The database accepts traffic only from the agents.
+
+**Managed model access.** Calling a provider API from a laptop is a development path. In the client's cloud, use the managed service so identity, network, and audit match the rest of the system.
+
+| Cloud | Service | What it is for |
+|---|---|---|
+| AWS | **Amazon Bedrock** | Foundation models, including Claude, under AWS access control. Default for this program |
+| Azure | **Azure AI Foundry** (also called Microsoft Foundry) | Models and agents inside the Azure identity and Microsoft estate |
+| GCP | **Vertex AI** (also called Agent Platform) | Google models plus training, tuning, and data-pipeline tooling |
+
+On AWS, the workload **role** invokes Bedrock. Prefer a **VPC endpoint** so the call stays on a private path. Turn on **model invocation logging**. A managed service does not audit itself until the client configures those controls.
+
+**Shape of an underwriting deployment.** Public load balancer accepts authenticated requests. Four agents run as private containers. Shared state sits in a private database. Model calls go to Bedrock through the VPC endpoint, using an approved model. Each agent role can read what it needs, call the model, and write its result.
+
+**Do not:** ship with a person's access keys in the container; put the database or the agents on a public subnet; grant a role delete-anything because it was faster; call a provider API from production when the client already has Bedrock and an audit requirement; treat "the AI part" as a separate security model.
+
+---
+
+# How the process is run
+
+Full notes: `Forward Deployed Engineer/Week9/Deployment Patterns: Serverless, Containerized, Kubernetes Essentials.md`.
+
+Pick the smallest pattern that matches the workload. Load-test that choice. Do not pick the most impressive platform.
+
+| Question | Run it as | Why |
+|---|---|---|
+| Brief work after an event? | **Lambda** | A webhook starts it. AWS runs the code. You do not keep a server. You pay for execution time. It can scale to zero |
+| A service that stays up, or a job that runs until the work finishes? | **ECS on Fargate** | The container stays available, or the job runs to completion. Predictable. No cold start on every request |
+| The client already requires Kubernetes, and a team can operate it? | **EKS** | Many components, different scaling, one control plane. The operating work is configuration, monitoring, capacity, and upgrades |
+
+**Lambda limits.** A standard invocation stops at **15 minutes**. A **cold start** is the delay while a new execution environment initializes after idle time. Measure that startup against the response-time target `(Observability, tracing, and budgets)`. Provisioned concurrency cuts the startup delay and adds cost. A webhook-triggered enrichment step fits. A multi-step loop that must stay warm, or answer with the same low latency every time, does not.
+
+**Containers.** The image packages the application and its dependencies `(Master.md — Docker)`. **ECS** keeps the tasks and services running and manages deploys. **Fargate** supplies the CPU and memory. You do not manage the host. **EC2** is a virtual machine whose OS you manage. ECS on EC2 means you still own those hosts. ECS on Fargate means AWS owns them. "Serverless" names who manages the servers. It does not mean the work is free or instant.
+
+**Kubernetes.** You declare the desired setup. The control plane keeps it. A **pod** is one or more containers on a node. A **Deployment** is how many copies, and how updates roll out. A **Service** is the stable address. It can request a load balancer in front of the pods. Failed pods are replaced. Use it when enrichment must scale on its own because the trace showed that step is the bottleneck, and intake must not scale with it. For one small pipeline, ECS/Fargate is enough. EKS is the right call when the client's platform and the people who run it justify the work.
+
+**Bills come from configuration.** Idle or oversized EC2. Fargate tasks with too much CPU, memory, or replica count. Lambda retries or a trigger loop that multiplies executions. Kubernetes replicas that scale without a ceiling. A per-request budget does not catch a platform left running `(Latency and Cost)`.
+
+**Do not:** put a steady multi-agent loop on Lambda and then be surprised by cold starts; run Kubernetes for a handful of cases; leave unused servers up; scale replicas without a cap; choose EKS because the diagram looks more serious than Fargate.
+
+---
+
+# Air-gapped and private model hosting
+
+Full notes: `Forward Deployed Engineer/Week9/On-Prem Realities: Air-Gapped Deployments and Private Model Hosting.md`.
+
+**On-prem** means the system runs on infrastructure the client controls. **Air-gapped** means that network has no path to the public internet. Some financial, insurance, government, and defense-adjacent systems require this. It overrides whatever cloud design would have been simpler.
+
+Nothing that fetches at build or at runtime will work. Replace each outside dependency before you promise a demo.
+
+| What you do now | Why it fails | What has to exist inside the boundary |
+|---|---|---|
+| External LLM API | No route to the provider | A private model server |
+| Public image registry | No live image pull | A pre-staged container image |
+| Package install from the public index | No live download | Local package files, or a mirror |
+| Model download | No access to the source | Approved model files already inside |
+
+**Pre-stage, in order.** Collect the full set: images, packages, model files, runtimes. Review and approve the versions through the client's transfer process. Transfer them in (often a one-way diode or a reviewed physical move). Build and run from those local files. Prove the workflow with the network still closed. A later patch is the same process. It is not an upgrade command. It can take days or weeks.
+
+**Who serves the model.** Open weights are the option that can run inside the boundary `(Open weights and where they fit)`. The license and the utilization math still apply. Hosting here is a connectivity constraint, not a cheaper API.
+
+| | Ollama | vLLM |
+|---|---|---|
+| Use | Development on a laptop or desktop | Production serving |
+| Strength | Simple setup, easy model changes | Many simultaneous requests, efficiently |
+| Hardware | Local machine | Server hardware, often with GPUs |
+| Air gap | Works once every required file is staged | Same |
+
+Both can take concurrent requests. Test the real workload. Do not promote the laptop runtime into production because it answered one case. The serving runtime loads the approved files and exposes a **local API**. The application sends prompts to that API. Hardware has to fit the model and the concurrency.
+
+**What stays the same.** The agent loop, the tools, and the case state do not get redesigned because the model moved. What changes is the model location (inside the boundary), the connection (a private network call, not an internet call), and software delivery (approved files staged ahead). Retest behavior on the hosted model. A different model is a different system `(Selecting a model)`.
+
+**Check before you design the rest.** Where can it run, and which connections are allowed? Which files must arrive through the approved transfer? Can this local model meet the quality floor and the concurrency? Does the full workflow finish with no external connectivity?
+
+**Do not:** propose an architecture that quietly calls a provider API, pulls an image, or downloads weights; treat Ollama as the production server; skip the offline run and assume the staged files are complete.
+
+---
+
+# Why the deployment constraint exists
+
+Full notes: `Forward Deployed Engineer/Week9/Why Regulated Industries Often Demand On-Prem, and How It Changes the Architecture.md`.
+
+"Compliance" is not one requirement. Name the pressure. Each one changes a different decision. "On-prem is safer" is not a design.
+
+| Pressure | The question | What you change |
+|---|---|---|
+| **Data residency** | Where must this data physically stay? | Only approved countries or regions for storage **and** processing. A secure region in the wrong country still fails |
+| **Data sovereignty** | Whose laws and authorities apply? | Review the jurisdiction of every processor and every access path, not only the database region |
+| **Third-party risk** | Which outside providers are we allowed to depend on? | A vendor review: what data they see, how long they keep it, what an outage or a breach does. It can take months and end in "not approved." Then self-host, and keep an exit plan |
+| **Model governance** | How is this model's behavior validated and held still? | Pin the model files and the configuration. Document inputs, limits, and decision evidence. A new version is validated before anyone releases it |
+
+An LLM call is processing. A database that sits in-country does not keep residency if inference, embeddings, or a tool sends the record somewhere else, even briefly, even if the answer comes back. Inventory the flow:
+
+- ingestion and enrichment: fields, service, processing location
+- embeddings and the vector store: provider and where the index lives
+- inference and tools: model endpoint and every downstream service
+- logs, backups, and access: retained copies, and who can read them
+
+A provider that can change the model without your release breaks model governance on a credit or underwriting decision. Freeze the approved version. Retest the agent workflow when that version changes. The decision record and the pinned id already required in **Selecting a model** are the control, not a later compliance pass.
+
+Every external dependency needs the same test: an embedding API, a hosted vector store, a managed model service. Convenient is not approved.
+
+**Do not:** store the database in-region and ignore where inference runs; add a provider API and discover the vendor review at the end; let a hosted model move versions under a decision the client must explain; use one slogan to answer four different constraints.
+
+---
+
 # Git as an engineering discipline
 
 A commit is a **unit of change**, not a save point. One sentence **without “and.”** Tests pass at that point. Atomicity is the precondition for revert, bisect, blame, cherry-pick — decided at `git commit`, not recoverable later.
@@ -1230,6 +1348,11 @@ Meet these on every extraction. Cheapest handling is in the prompt + schema, not
 | Trace record | Agent, input source, output, `duration_ms`, tokens, errors, retries |
 | Cost and latency budget | Per case, per agent, written before the architecture |
 | Queue-depth alert | Threshold before cases silently miss the time expectation |
+| Workload role and policy | Least privilege: the reads, the model invoke, and the writes this agent needs |
+| Network placement | Public entry only. Agents and state in private subnets. Security groups match that path |
+| Deploy choice | Lambda, ECS/Fargate, or EKS, with the workload question and a load test |
+| Staged dependency set | Images, packages, model files, runtimes approved before an air-gapped run |
+| Data-flow inventory | Storage, processing, embeddings, inference, tools, logs, backups, and who can read them |
 | Standing agent instructions | Repo conventions |
 | `docs/api-contract.md` + red tests | Authority for agent coding |
 | `.worktrees/` gitignored | Parallel agents |
@@ -1288,6 +1411,15 @@ Meet these on every extraction. Cheapest handling is in the prompt + schema, not
 | API vs webhook vs queue | You need the answer now; they notify you; you buffer a burst. Each pattern has its own failure. |
 | Missed webhook | A reconciliation poll. Do not trust delivery alone. |
 | Backed-up queue | No crash. Depth grows. Alert before the client asks why a case takes two days. |
+| Least privilege | The workload role can read what this task needs, invoke the model, and write the result. Nothing else. |
+| Public vs private subnet | Internet-facing entry point vs agents and the database, which are not directly reachable. |
+| Bedrock vs a provider API | Same model call, but identity, private network path, and invocation logs match the rest of the AWS account. |
+| Lambda vs Fargate vs EKS | Short event-driven work; a service or job that stays up; Kubernetes only when the client can operate it. |
+| Cold start | Lambda initializing a fresh environment after idle time. Measure it against the response-time target. 15-minute cap. |
+| Air gap | No path to the internet. Images, packages, and model files are approved and staged first. |
+| Ollama vs vLLM | Laptop testing vs production serving of many concurrent requests. Both need the files staged. Test the workload. |
+| Residency vs sovereignty | Where the data sits vs whose laws apply. Inference and embeddings count, not only the database. |
+| Why not "on-prem is safer" | Name residency, sovereignty, vendor risk, or model governance. Each one changes a different decision. |
 
 ---
 
@@ -1334,6 +1466,10 @@ Meet these on every extraction. Cheapest handling is in the prompt + schema, not
 | State and memory | `WEEK8/State and Memory Management.md` |
 | Observability, tracing, budgets | `WEEK8/Observability and Tracing; Cost and Latency Budgeting.md` |
 | APIs, webhooks, queues, events | `WEEK8/Integration Patterns: APIs, Webhooks, Queues, and Event-Driven Flows.md` |
+| Where the system runs | `Week9/AWS, Azure, GCP Fundamentals for AI Workloads.md` |
+| How the process is run | `Week9/Deployment Patterns: Serverless, Containerized, Kubernetes Essentials.md` |
+| Air-gapped and private model hosting | `Week9/On-Prem Realities: Air-Gapped Deployments and Private Model Hosting.md` |
+| Why the deployment constraint exists | `Week9/Why Regulated Industries Often Demand On-Prem, and How It Changes the Architecture.md` |
 | Git discipline | `Git as an Engineering Discipline.md` |
 | PR and review | `The Pull Request and the Review.md` |
 | Scoping agents | `Scoping Work for an Agent.md` |
@@ -1358,5 +1494,6 @@ You are a **reviewer and guide**, not an autopilot implementer.
 - On **RAG** work, default to the three important articles: **Embeddings, Vector Stores, and Chunking** (pipeline), **Hybrid and Agentic Retrieval** (upgrade only when justified), and **Failure Modes** (inspect retrieval before editing the prompt). Then apply the retrieval contract: `embed_text` vs `text`, `build_id`, reciprocal rank fusion, pre-filter both retrievers, code-controlled multi-step. Ask whether the **source** was current before you tune the pipeline.
 - On **agent** work, walk the four questions in order: code, one LLM call, fixed workflow, agent. The model requests tools; your code validates and runs them. Plan, ReAct, reflect. Do not treat the thought trace as evidence.
 - On **multi-agent** work, scope short-term memory to one request and persist case facts on purpose (shared store or an explicit handoff). Trace every step. Set cost and latency budgets per agent before you build. Connect with an API, a webhook, or a queue for the need you actually have, and define timeout, missed delivery, and queue depth before the happy path.
+- On **deployment**, put each workload under a role with only the permissions it needs, and keep agents and state off the public network. Use Lambda for a short event, ECS/Fargate for a service or a longer job, and EKS only when the client can operate it. If there is no internet path, stage every image, package, and model file and call a model inside the boundary. Name the real constraint — residency, sovereignty, vendor risk, or model governance — and map every place data is stored or processed before choosing a provider API.
 
-*Derived from the Forward Deployed Engineer articles in this repo. Use on any LLM or agentic project. Pair with `Master.md` when the same repo still needs SDLC and Python discipline. Client-facing default: those two articles first. RAG default: the three important retrieval articles plus the retrieval contract. Agent default: the simplest option that actually solves the task.*
+*Derived from the Forward Deployed Engineer articles in this repo. Use on any LLM or agentic project. Pair with `Master.md` when the same repo still needs SDLC and Python discipline. Client-facing default: those two articles first. RAG default: the three important retrieval articles plus the retrieval contract. Agent default: the simplest option that actually solves the task. Deployment default: least privilege, private network, the smallest runtime that fits, and the named constraint before any provider API.*
